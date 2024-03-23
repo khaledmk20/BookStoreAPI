@@ -21,6 +21,7 @@
 .env.*.local
 Untitled Diagram.drawio
 appsettings.json
+script.sql
 # Ignore operating system files
 .DS_Store
 Thumbs.db
