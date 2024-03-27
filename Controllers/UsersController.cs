@@ -1,7 +1,6 @@
 using System.Data;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using BookStoreAPI.Data;
 using BookStoreAPI.Dtos;
 using BookStoreAPI.Helpers;
@@ -216,7 +215,7 @@ namespace BookStoreAPI.Controllers
         }
 
         [HttpGet("Orders")]
-        public IActionResult GetOrderDetails()
+        public IActionResult GetOrdersDetails()
         {
             var userId = User.FindFirstValue("userId");
             string sql = @"UserSchema.Orders_get @UserId = @UserIdParam";
@@ -252,6 +251,8 @@ namespace BookStoreAPI.Controllers
         [HttpPost("Order")]
         public IActionResult PlaceOrder(OrderForCreationDto orderForCreation)
         {
+            if (!_auth.IsAdmin(User))
+                return Unauthorized("Only admins can access this route");
 
             var userId = User.FindFirstValue("userId");
             string sql = @"UserSchema.sp_Order_insert 
@@ -259,7 +260,7 @@ namespace BookStoreAPI.Controllers
                     @OrderLines = @OrderLinesParam";
 
 
-            string orderLineJson = JsonSerializer.Serialize(orderForCreation.OrderLine);  // Convert to JSON string
+            string orderLineJson = JsonSerializer.Serialize(orderForCreation.OrderLine);
             DynamicParameters sqlParams = new DynamicParameters();
             sqlParams.Add("@UserIdParam", userId, DbType.Int32);
             sqlParams.Add("@OrderLinesParam", orderLineJson, DbType.String);
