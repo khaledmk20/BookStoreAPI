@@ -31,7 +31,7 @@ namespace BookStoreAPI.Controllers
 
 
         [HttpPost]
-        public Session? CreateSession(Cart[] cartItems)
+        public string CreateSession(Cart[] cartItems)
         {
             if (cartItems.Length == 0)
                 return null;
@@ -46,7 +46,7 @@ namespace BookStoreAPI.Controllers
 
                     PriceData = new SessionLineItemPriceDataOptions
                     {
-                        UnitAmountDecimal = Math.Round(item.BookPrice, 2) * 100, // Stripe amounts are in cents
+                        UnitAmountDecimal = Math.Round(item.BookPrice, 2) * 100,
                         Currency = "usd",
                         ProductData = new SessionLineItemPriceDataProductDataOptions
                         {
@@ -86,7 +86,7 @@ namespace BookStoreAPI.Controllers
             Session session = service.Create(options);
             CreateOrder(cartItems, session.Id);
 
-            return session;
+            return session.Url;
         }
 
         [NonAction]

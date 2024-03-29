@@ -35,7 +35,7 @@ namespace BookStoreAPI.Controllers
 
         }
 
-        [HttpGet()]
+        [HttpGet]
         [AllowAnonymous]
         public IEnumerable<Book> GetBooks(string? categoryName,
         string? searchValue = "",

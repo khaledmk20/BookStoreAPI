@@ -1,8 +1,6 @@
 using System.Data;
-using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
-using Azure.Storage.Blobs;
 using BookStoreAPI.Data;
 using BookStoreAPI.Dtos;
 using BookStoreAPI.Helpers;
@@ -11,7 +9,6 @@ using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
 
 namespace BookStoreAPI.Controllers
 {
@@ -306,7 +303,7 @@ namespace BookStoreAPI.Controllers
 
 
         [HttpPut("editUserImage")]
-        public async Task<IActionResult> UploadUserImage(IFormFile file)
+        public async Task<IActionResult> UploadUserImage(IFormFile image)
         {
 
             var userId = User.FindFirstValue("userId");
@@ -314,9 +311,9 @@ namespace BookStoreAPI.Controllers
                 return Unauthorized("User not found");
             try
             {
-                if (file.Length > 0)
+                if (image.Length > 0)
                 {
-                    string fileURL = await _uploadService.UploadImageAsync(file.OpenReadStream(), file.FileName.Trim(), file.ContentType, true);
+                    string fileURL = await _uploadService.UploadImageAsync(image.OpenReadStream(), image.FileName.Trim(), image.ContentType, true);
                     return updateUserImage(fileURL, userId);
                 }
                 else
