@@ -20,11 +20,14 @@ namespace BookStoreAPI.Controllers
         private readonly DataContextDapper _dapper;
         private readonly IMapper _mapper;
         private readonly AuthHelper _auth;
+        private readonly AzureBlobStorageService _uploadService;
 
         public BooksController(IConfiguration config)
         {
             _auth = new AuthHelper(config);
             _dapper = new DataContextDapper(config);
+            _uploadService = new AzureBlobStorageService(config);
+
             _mapper = new Mapper(new MapperConfiguration(cfg =>
           {
               cfg.CreateMap<BookToAddDto, Book>();
@@ -118,6 +121,7 @@ namespace BookStoreAPI.Controllers
 
         private IActionResult HandleBookAddOrEdit(Book book)
         {
+
             string sql = @"EXECUTE BookSchema.sp_Book_Upsert 
                     @BookId = @BookIdParam,
                     @BookTitle = @BookTitleParam,
@@ -171,7 +175,7 @@ namespace BookStoreAPI.Controllers
                 throw new Exception("Failed to edit book.");
         }
 
-        [HttpDelete("{Id}")]
+        [HttpDelete("{bookId}")]
         public IActionResult DeleteBook(int bookId)
         {
             if (!_auth.IsAdmin(User))
@@ -187,7 +191,45 @@ namespace BookStoreAPI.Controllers
 
         }
 
+        [HttpPost("BookImage/{bookId}")]
+        public async Task<IActionResult> UploadImage(IFormFile image, int bookId)
+        {
+            try
+            {
+                if (image.Length > 0)
+                {
+                    string fileURL = await _uploadService.UploadImageAsync(image.OpenReadStream(), image.FileName.Trim(), image.ContentType, false);
+                    string sql = @"UPDATE BookSchema.Books 
+                    SET BookImage = @BookImageParam where Id = @BookIdParam";
+                    DynamicParameters sqlParams = new DynamicParameters();
+                    sqlParams.Add("@BookImageParam", fileURL, DbType.String);
+                    sqlParams.Add("@BookIdParam", bookId, DbType.Int32);
+                    try
+                    {
+                        if (!_dapper.ExecuteSqlWithParameters(sql, sqlParams))
+                        {
+                            return BadRequest("invalid book id provided.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        return StatusCode(500, $"Internal server error: {ex.Message}");
+                    }
 
+                    return Ok();
+                }
+                else
+                {
+                    return BadRequest();
+                }
+            }
+
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
+        }
     }
     // TODO: Add book comments endpoint 
 }

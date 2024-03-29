@@ -1,6 +1,8 @@
 using System.Data;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
+using Azure.Storage.Blobs;
 using BookStoreAPI.Data;
 using BookStoreAPI.Dtos;
 using BookStoreAPI.Helpers;
@@ -8,6 +10,8 @@ using BookStoreAPI.Models;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
 
 namespace BookStoreAPI.Controllers
 {
@@ -18,10 +22,14 @@ namespace BookStoreAPI.Controllers
     {
         private readonly DataContextDapper _dapper;
         private readonly AuthHelper _auth;
+        private readonly AzureBlobStorageService _uploadService;
+
         public UsersController(IConfiguration config)
         {
             _auth = new AuthHelper(config);
             _dapper = new DataContextDapper(config);
+            _uploadService = new AzureBlobStorageService(config);
+
         }
 
         [HttpGet()]
@@ -53,7 +61,8 @@ namespace BookStoreAPI.Controllers
                     [LastName],
                     [Email],
                     [PhoneNumber],
-                    [Gender] 
+                    [Gender],
+                    [UserImageUrl]
                 FROM UserSchema.Users
                 WHERE Id = {userId}";
             return Ok(_dapper.LoadDataSingle<SingleUser>(sql));
@@ -291,6 +300,51 @@ namespace BookStoreAPI.Controllers
 
             if (!_dapper.ExecuteSqlWithParameters(sql, sqlParams))
                 return BadRequest("Failed to update order status");
+
+            return Ok();
+        }
+
+
+        [HttpPut("editUserImage")]
+        public async Task<IActionResult> UploadUserImage(IFormFile file)
+        {
+
+            var userId = User.FindFirstValue("userId");
+            if (userId is null)
+                return Unauthorized("User not found");
+            try
+            {
+                if (file.Length > 0)
+                {
+                    string fileURL = await _uploadService.UploadImageAsync(file.OpenReadStream(), file.FileName.Trim(), file.ContentType, true);
+                    return updateUserImage(fileURL, userId);
+                }
+                else
+                {
+                    return BadRequest();
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+
+        }
+
+
+
+        [NonAction]
+        private IActionResult updateUserImage(string fileURL, string userId)
+        {
+            string sql = @$" UPDATE UserSchema.Users 
+                    SET UserImageUrl = @UserImageUrlParam
+                    WHERE Id = @UserIdParam";
+
+            DynamicParameters sqlParams = new DynamicParameters();
+            sqlParams.Add("@UserIdParam", userId, DbType.Int32);
+            sqlParams.Add("@UserImageUrlParam", fileURL, DbType.String);
+            if (!_dapper.ExecuteSqlWithParameters(sql, sqlParams))
+                return BadRequest("Failed to update user image");
 
             return Ok();
         }
