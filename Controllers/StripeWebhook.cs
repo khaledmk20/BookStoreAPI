@@ -17,15 +17,17 @@ namespace BookStoreAPI.Controllers
     public class StripeWebhookController : ControllerBase
     {
         private readonly DataContextDapper _dapper;
+        private readonly IConfiguration _config;
         public StripeWebhookController(IConfiguration config)
         {
             _dapper = new DataContextDapper(config);
+            _config = config;
         }
-        const string endpointSecret = "whsec_58794443d878ce4211193ae856e282a9920d37803ff18d1d7733a98514b19753";
 
         [HttpPost]
         public async Task<IActionResult> Index()
         {
+            var endpointSecret = _config.GetSection("Stripe:WebhookSecret").Value;
             var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
             try
             {
