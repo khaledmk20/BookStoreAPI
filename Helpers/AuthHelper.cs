@@ -4,14 +4,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using BookStoreAPI.Data;
 using BookStoreAPI.Dtos;
 using Dapper;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-
 namespace BookStoreAPI.Helpers
 {
     public class AuthHelper : ControllerBase
@@ -37,13 +35,18 @@ namespace BookStoreAPI.Helpers
             );
         }
 
-        public bool SetPassword(UserForLoginDto userForSetPassword)
+        public byte[] PasswordSalt()
         {
             byte[] passwordSalt = new byte[128 / 8];
             using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
             {
                 rng.GetNonZeroBytes(passwordSalt);
             }
+            return passwordSalt;
+        }
+        public bool SetPassword(UserForLoginDto userForSetPassword)
+        {
+            byte[] passwordSalt = PasswordSalt();
 
 
             byte[] passwordHash = GetPasswordHash(userForSetPassword.Password, passwordSalt);
@@ -66,7 +69,6 @@ namespace BookStoreAPI.Helpers
 
         public bool IsValidEmail(string email)
         {
-            // Simple email validation regex
             string emailRegex = @"^[^\s@]+@[^\s@]+\.[^\s@]+$";
             return Regex.IsMatch(email, emailRegex);
         }
@@ -105,5 +107,54 @@ namespace BookStoreAPI.Helpers
         }
 
 
+        public string CreatePasswordResetToken(string email)
+        {
+            string token = Guid.NewGuid().ToString();
+
+            string hashedToken = HashString(token);
+
+            string sqlAddToken = @"UPDATE UserSchema.Auth 
+                SET ResetPasswordToken = @ResetPasswordTokenParam, 
+                    ExpiresAt = @ExpiresAtParam
+                WHERE Email = @EmailParam;
+                ";
+
+            DynamicParameters sqlParameters = new DynamicParameters();
+            sqlParameters.Add("@ResetPasswordTokenParam", hashedToken, DbType.String);
+            sqlParameters.Add("@ExpiresAtParam", DateTime.Now.AddMinutes(5), DbType.DateTime);
+            sqlParameters.Add("@EmailParam", email, DbType.String);
+
+            try
+            {
+                _dapper.ExecuteSqlWithParameters(sqlAddToken, sqlParameters);
+            }
+            catch (Exception e)
+            {
+                return e.Message;
+            }
+
+            return token;
+
+        }
+
+        public string HashString(string input)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+
+                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
+
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
     }
+
+
+
+
 }

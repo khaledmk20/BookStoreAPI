@@ -2,6 +2,7 @@ using System.Data;
 using BookStoreAPI.Data;
 using BookStoreAPI.Dtos;
 using BookStoreAPI.Helpers;
+using BookStoreAPI.services;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,10 +15,12 @@ namespace BookStoreAPI.Controllers
         private readonly DataContextDapper _dapper;
         private readonly AuthHelper _authHelper;
         private readonly int passwordLength = 8;
+        private readonly EmailSender _emailSender;
         public AuthController(IConfiguration config)
         {
             _dapper = new DataContextDapper(config);
             _authHelper = new AuthHelper(config);
+            _emailSender = new EmailSender(config);
         }
 
         [HttpPost("SignUp")]
@@ -74,6 +77,14 @@ namespace BookStoreAPI.Controllers
                 createNewUserSql += sqlParamString;
                 if (_dapper.ExecuteSqlWithParameters(createNewUserSql, sqlParams))
                 {
+                    using (FileStream fileStream = new FileStream("emailTemplate.html", FileMode.Open, FileAccess.Read))
+                    {
+                        using (StreamReader streamReader = new StreamReader(fileStream))
+                        {
+                            _emailSender.SendEmailAsync(user.Email, "Welcome to Reading club!", streamReader.ReadToEnd().Replace("{{name}}", user.FirstName));
+                        }
+                    }
+
                     return Ok();
                 }
                 throw new Exception("Failed to add user");
@@ -123,6 +134,97 @@ namespace BookStoreAPI.Controllers
 
         }
 
+        [HttpPost("ForgotPassword")]
+        public IActionResult ForgotPassword(UserForForgotPasswordDto userForForgotPassword)
+        {
+            string sqlForEmail = @"SELECT Email FROM UserSchema.Auth
+            WHERE Email = @EmailParam";
+            DynamicParameters sqlParameters = new DynamicParameters();
+            sqlParameters.Add("@EmailParam", userForForgotPassword.Email, DbType.String);
+
+            var email = _dapper.LoadDataSingleWithParameters<string>(sqlForEmail, sqlParameters);
+
+
+            if (email == null)
+                return BadRequest("User with this email does not exist");
+            string resetToken;
+
+            try
+            {
+                resetToken = _authHelper.CreatePasswordResetToken(email);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+
+
+            using (FileStream fileStream = new FileStream("resetPasswordTemplate.html", FileMode.Open, FileAccess.Read))
+            {
+                using (StreamReader streamReader = new StreamReader(fileStream))
+                {
+                    var url = $"{this.Request.Scheme}://{this.Request.Host}/{resetToken}";
+
+                    _emailSender.SendEmailAsync(email, "Password Reset (only valid for 5 minutes)", streamReader.ReadToEnd().Replace("{{resetToken}}", url));
+                }
+            }
+
+            return Ok("Password reset link has been sent to your email");
+        }
+
+        [HttpPost("ResetPassword")]
+        public IActionResult ResetPassword(UserForResetPasswordDto userForResetPassword)
+        {
+            if (!userForResetPassword.Password.Equals(userForResetPassword.PasswordConfirm))
+                return BadRequest("Passwords do not match");
+
+            if (userForResetPassword.Password.Length < this.passwordLength)
+                return BadRequest("Password must be at least 8 characters long");
+
+            var hashedToken = _authHelper.HashString(userForResetPassword.Token);
+
+
+            string sqlForToken = @"SELECT ResetPasswordToken,ExpiresAt FROM UserSchema.Auth
+            WHERE ResetPasswordToken = @ResetPasswordTokenParam";
+
+            DynamicParameters sqlParameters = new DynamicParameters();
+            sqlParameters.Add("@ResetPasswordTokenParam", hashedToken, DbType.String);
+
+
+            var tokenAndExpiration = _dapper.LoadDataSingleWithParameters<TokenAndExpirationDto>(sqlForToken, sqlParameters);
+
+            if (tokenAndExpiration == null)
+                return BadRequest("Invalid token");
+
+            if (tokenAndExpiration.ExpiresAt < DateTime.Now)
+                return BadRequest("Token has expired");
+
+            if (tokenAndExpiration.ResetPasswordToken != _authHelper.HashString(userForResetPassword?.Token))
+                return BadRequest("Invalid token");
+
+
+            var passwordSalt = _authHelper.PasswordSalt();
+            var passwordHash = _authHelper.GetPasswordHash(userForResetPassword.Password, passwordSalt);
+
+
+            string sqlForResetPassword = @"UPDATE UserSchema.Auth
+            SET PasswordHash = @PasswordHashParam,
+            passwordSalt = @PasswordSaltParam,
+            ResetPasswordToken = NULL,
+            ExpiresAt = NULL
+            WHERE ResetPasswordToken = @ResetPasswordTokenParam";
+
+            DynamicParameters sqlParams = new DynamicParameters();
+            sqlParams.Add("@PasswordHashParam", passwordHash, DbType.Binary);
+            sqlParams.Add("@PasswordSaltParam", passwordSalt, DbType.Binary);
+            sqlParams.Add("@ResetPasswordTokenParam", hashedToken, DbType.String);
+
+            if (_dapper.ExecuteSqlWithParameters(sqlForResetPassword, sqlParams))
+                return Ok("Password has been reset");
+
+            return BadRequest("Failed to reset password");
+
+        }
     }
 }
 

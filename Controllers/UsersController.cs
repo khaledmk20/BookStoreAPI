@@ -35,7 +35,6 @@ namespace BookStoreAPI.Controllers
             if (!_auth.IsAdmin(User))
                 return Unauthorized("Only admins can access this route");
 
-
             string sql = @"SELECT [Id],
                     [FirstName],
                     [LastName],

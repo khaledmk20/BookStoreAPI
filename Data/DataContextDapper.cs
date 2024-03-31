@@ -49,7 +49,7 @@ namespace BookStoreAPI.Data
         public T LoadDataSingleWithParameters<T>(string sql, DynamicParameters parameters)
         {
             IDbConnection dbConnection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
-            return dbConnection.QuerySingle<T>(sql, parameters);
+            return dbConnection.QuerySingleOrDefault<T>(sql, parameters)!;
         }
 
     }
