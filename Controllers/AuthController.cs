@@ -95,24 +95,43 @@ namespace BookStoreAPI.Controllers
         [HttpPost("Login")]
         public IActionResult Login(UserForLoginDto userForLogin)
         {
-            string sqlForHashAndSalt = @"EXEC UserSchema.spLoginConfirmation_Get 
-            @Email = @EmailParam";
+            if (userForLogin == null)
+            {
+                return BadRequest("Invalid user data");
+            }
+
+            string sqlForHashAndSalt = @"EXEC UserSchema.spLoginConfirmation_Get @Email = @EmailParam";
 
             DynamicParameters sqlParameters = new DynamicParameters();
-
             sqlParameters.Add("@EmailParam", userForLogin.Email, DbType.String);
-            UserForLoginConfirmationDto userForConfirmation;
+
+            UserForLoginConfirmationDto userForConfirmation = null;
             try
             {
-                userForConfirmation = _dapper
-               .LoadDataSingleWithParameters<UserForLoginConfirmationDto>(sqlForHashAndSalt, sqlParameters);
+                userForConfirmation = _dapper.LoadDataSingleWithParameters<UserForLoginConfirmationDto>(sqlForHashAndSalt, sqlParameters);
             }
             catch
             {
                 return BadRequest("User not found");
             }
 
+            if (userForConfirmation == null)
+            {
+                return BadRequest("User not found");
+            }
+
+            // Check if the password hash and salt are null
+            if (userForConfirmation.PasswordHash == null || userForConfirmation.PasswordSalt == null)
+            {
+                return StatusCode(401, "User credentials are invalid");
+            }
+
             byte[] passwordHash = _authHelper.GetPasswordHash(userForLogin.Password, userForConfirmation.PasswordSalt);
+
+            if (passwordHash == null || passwordHash.Length != userForConfirmation.PasswordHash.Length)
+            {
+                return StatusCode(401, "Incorrect Password");
+            }
 
             for (int i = 0; i < passwordHash.Length; i++)
             {
@@ -120,19 +139,33 @@ namespace BookStoreAPI.Controllers
                     return StatusCode(401, "Incorrect Password");
             }
 
-            string userIdSql = $@"SELECT [Id] FROM UserSchema.Users
-             where  Email = '{userForLogin.Email}' ";
-            string userRoleSql = $@"SELECT [UserRole] FROM UserSchema.Users
-             where  Email = '{userForLogin.Email}' ";
-            int userId = _dapper.LoadDataSingle<int>(userIdSql);
-            string userRole = _dapper.LoadDataSingle<string>(userRoleSql);
+            string userIdSql = $@"SELECT [Id] FROM UserSchema.Users WHERE Email = '{userForLogin.Email}'";
+            string userRoleSql = $@"SELECT [UserRole] FROM UserSchema.Users WHERE Email = '{userForLogin.Email}'";
+
+            int userId;
+            string userRole;
+            try
+            {
+                userId = _dapper.LoadDataSingle<int>(userIdSql);
+                userRole = _dapper.LoadDataSingle<string>(userRoleSql);
+            }
+            catch (Exception ex)
+            {
+                // Log the exception for investigation
+                return StatusCode(500, $"An error occurred while retrieving user data {ex.Message}");
+            }
+
+            if (userId == default(int) || string.IsNullOrEmpty(userRole))
+            {
+                return StatusCode(500, "Invalid user data retrieved from the database");
+            }
 
             return Ok(new Dictionary<string, string>
-            {
-                {"token",_authHelper.CreateToken(userId,userRole)}
-            });
-
+    {
+        {"token",_authHelper.CreateToken(userId,userRole)}
+    });
         }
+
 
         [HttpPost("ForgotPassword")]
         public IActionResult ForgotPassword(UserForForgotPasswordDto userForForgotPassword)
