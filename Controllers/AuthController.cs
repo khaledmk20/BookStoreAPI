@@ -77,8 +77,11 @@ namespace BookStoreAPI.Controllers
                 createNewUserSql += sqlParamString;
                 if (_dapper.ExecuteSqlWithParameters(createNewUserSql, sqlParams))
                 {
-                    using (FileStream fileStream = new FileStream("emailTemplate.html", FileMode.Open, FileAccess.Read))
+                    string directory = Directory.GetCurrentDirectory();
+                    string path = Path.Combine(directory, "emailTemplate.html");
+                    using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
                     {
+
                         using (StreamReader streamReader = new StreamReader(fileStream))
                         {
                             _emailSender.SendEmailAsync(user.Email, "Welcome to Reading club!", streamReader.ReadToEnd().Replace("{{name}}", user.FirstName));
@@ -191,8 +194,9 @@ namespace BookStoreAPI.Controllers
                 return BadRequest(e.Message);
             }
 
-
-            using (FileStream fileStream = new FileStream("resetPasswordTemplate.html", FileMode.Open, FileAccess.Read))
+            string directory = Directory.GetCurrentDirectory();
+            string path = Path.Combine(directory, "resetPasswordTemplate.html");
+            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
             {
                 using (StreamReader streamReader = new StreamReader(fileStream))
                 {
