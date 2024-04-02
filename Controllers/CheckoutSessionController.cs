@@ -34,7 +34,7 @@ namespace BookStoreAPI.Controllers
         public string CreateSession(Cart[] cartItems)
         {
             if (cartItems.Length == 0)
-                return null;
+                return "Cart is empty";
 
             var userId = User.FindFirstValue("userId");
 

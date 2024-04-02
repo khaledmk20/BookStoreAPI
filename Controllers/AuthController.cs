@@ -175,11 +175,14 @@ namespace BookStoreAPI.Controllers
         [HttpPost("ResetPassword")]
         public IActionResult ResetPassword(UserForResetPasswordDto userForResetPassword)
         {
-            if (!userForResetPassword.Password.Equals(userForResetPassword.PasswordConfirm))
+            if (userForResetPassword.Password == null || !userForResetPassword.Password.Equals(userForResetPassword.PasswordConfirm))
                 return BadRequest("Passwords do not match");
 
             if (userForResetPassword.Password.Length < this.passwordLength)
                 return BadRequest("Password must be at least 8 characters long");
+
+            if (userForResetPassword.Token == null)
+                return BadRequest("Invalid token");
 
             var hashedToken = _authHelper.HashString(userForResetPassword.Token);
 
@@ -199,9 +202,8 @@ namespace BookStoreAPI.Controllers
             if (tokenAndExpiration.ExpiresAt < DateTime.Now)
                 return BadRequest("Token has expired");
 
-            if (tokenAndExpiration.ResetPasswordToken != _authHelper.HashString(userForResetPassword?.Token))
+            if (tokenAndExpiration.ResetPasswordToken != _authHelper.HashString(userForResetPassword.Token))
                 return BadRequest("Invalid token");
-
 
             var passwordSalt = _authHelper.PasswordSalt();
             var passwordHash = _authHelper.GetPasswordHash(userForResetPassword.Password, passwordSalt);

@@ -44,7 +44,6 @@ namespace BookStoreAPI.Controllers
         string? sortOrder = "",
         int? bookId = 0)
         {
-
             string sql = @"EXECUTE BookSchema.spBooks_Get";
 
             string stringParameter = "";
@@ -230,8 +229,22 @@ namespace BookStoreAPI.Controllers
             }
 
         }
+        [HttpGet("Reviews/{bookId}")]
+        [AllowAnonymous]
+        public IEnumerable<BookReview> GetBookReviews(int bookId, int pageNumber = 1, int pageSize = 10)
+        {
+            string sql = @"EXECUTE BookSchema.sp_BookReview_get 
+                        @BookId = @BookIdParam,
+                        @pageNumber = @pageNumberParam,
+                        @pageSize = @pageSizeParam";
+            DynamicParameters sqlParams = new DynamicParameters();
+            sqlParams.Add("@BookIdParam", bookId, DbType.Int32);
+            sqlParams.Add("@pageNumberParam", pageNumber, DbType.Int32);
+            sqlParams.Add("@pageSizeParam", pageSize, DbType.Int32);
+
+            return _dapper.LoadDataWithParameters<BookReview>(sql, sqlParams);
+        }
     }
-    // TODO: Add book comments endpoint 
 }
 
 
