@@ -25,7 +25,7 @@ namespace BookStoreAPI.Controllers
 
         [HttpPost("SignUp")]
 
-        public IActionResult SignUp(UserForRegistrationDto user)
+        public async Task<IActionResult> SignUp(UserForRegistrationDto user)
         {
             if (!_authHelper.IsValidEmail(user.Email))
                 return BadRequest("Please provide a valid email address.");
@@ -82,14 +82,7 @@ namespace BookStoreAPI.Controllers
 
                         using (StreamReader streamReader = new StreamReader(fileStream))
                         {
-                            try
-                            {
-                                _emailSender.SendEmailAsync(user.Email, "Welcome to Reading club!", streamReader.ReadToEnd().Replace("{{name}}", user.FirstName));
-                            }
-                            catch (Exception e)
-                            {
-                                return BadRequest(e.Message);
-                            }
+                            await _emailSender.SendEmailAsync(user.Email, "Welcome to Reading club!", streamReader.ReadToEnd().Replace("{{name}}", user.FirstName));
                         }
                     }
 
