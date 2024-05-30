@@ -22,6 +22,9 @@
 Untitled Diagram.drawio
 appsettings.json
 script.sql
+bookstore-azure-admin.txt
+sql.sql
+
 # Ignore operating system files
 .DS_Store
 Thumbs.db
@@ -47,3 +50,4 @@ credentials.json
 /test-results/
 
 # Ignore any other unnecessary files or folders
+.fake
